@@ -1,3 +1,17 @@
+"""
+采用监督学习下的极大似然估计：
+- 我们用纯正的 GBM（趋势）数据训练一个 HMM_Trend。
+- 我们用纯正的 OU（震荡）数据训练一个 HMM_MR (Mean-Reverting)。
+对于那 100 条未知的蒙特卡洛路径
+，我们分别计算其在两个模型下的对数似然值 (Log-Likelihood)。
+判别准则： 如果
+，则判定为趋势，反之为震荡。
+为了让 HMM 能抓住 OU 过程“均值回归”的灵魂，我们喂给 HMM 的特征矩阵不仅仅是收益率，而是 二维向量
+。因为在震荡市中，价格本身的高度（
+）决定了下一步的涨跌（
+），而趋势市中两者是独立的。
+
+"""
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -56,8 +70,8 @@ num_train_paths = 30
 # 生成训练数据 (列表格式，防止拼接断层)
 train_gbm_paths=[]
 for _ in range(num_train_paths):
-    # drift=0.5 if np.random.rand()>=0.5 else -0.5 # [GBM] 50% 概率生成向上趋势，50% 概率生成向下趋势
-    drift=-0.5
+    drift=0.5 if np.random.rand()>=0.5 else -0.5 # [GBM] 50% 概率生成向上趋势，50% 概率生成向下趋势
+    # drift=-0.5
     train_gbm_paths.append(generate_gbm_path(100, drift, 0.15, 1, N_steps))
 
 train_ou_paths = [generate_ou_path(100, 10.0, 100, 15, 1, N_steps) for _ in range(num_train_paths)]
@@ -88,7 +102,8 @@ for i in range(num_paths):
     is_trend = np.random.rand() > 0.5
     if is_trend:
         # 这里的参数需要与训练集分布接近
-        path = generate_gbm_path(S0=100, mu=0.5, sigma=0.15, T=1, N=N_steps)
+        drift = 0.5 if np.random.rand() > 0.5 else -0.5  # 50%概率牛市，50%概率熊市
+        path = generate_gbm_path(S0=100, mu=drift, sigma=0.15, T=1, N=N_steps)
         true_label = "TREND"
     else:
         path = generate_ou_path(S0=100, theta=10.0, mu=100, sigma=15, T=1, N=N_steps)
